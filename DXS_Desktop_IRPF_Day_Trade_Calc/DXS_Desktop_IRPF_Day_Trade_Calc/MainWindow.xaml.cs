@@ -9,6 +9,7 @@ using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace DXS_Desktop_IRPF_Day_Trade_Calc
 {
@@ -25,8 +26,9 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
         {
             this.txtEditor.Text = "";
         }
-        private void btnOpenFile_Click(object sender, RoutedEventArgs e)
+        private async void btnOpenFile_Click(object sender, RoutedEventArgs e)
         {
+            List<Task> tasks = new List<Task>();
             OpenFileDialog openFileDialog = new OpenFileDialog();
             openFileDialog.Multiselect = true;
             openFileDialog.Filter = "Text files (*.pdf)|*.pdf|All files (*.*)|*.*";
@@ -34,53 +36,128 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             {
                 //Todas as páginas processadas!
                 List<TituloValor> listaPaginas = new List<TituloValor>();
-                //Para cada arquivo selecionado!
-                foreach (string filename in openFileDialog.FileNames)
+                int arquivo = 1;
+
+                Task t = new Task(() =>
                 {
-                    var src = filename;
-                    PdfDocument documento = LerPdf(src);
-                    //Para cada página do arquivo que está sendo processado!
-                    for (int paginaAtual = 1; paginaAtual <= documento.GetNumberOfPages(); paginaAtual++)
+                    this.Dispatcher.Invoke(() =>
                     {
-                        string pagina = lerPaginaPdf(documento, paginaAtual);
-                        string[] linhasPagina = pagina.Split("\n");
-                        if ((chkIncidencia.IsChecked == true) || (chkValorNegociado.IsChecked == true))
+                        lblStatus.Content = Tarefa.Processando;
+                    });
+                    //Para cada arquivo selecionado!
+                    foreach (string filename in openFileDialog.FileNames)
+                    {
+                        this.Dispatcher.Invoke(() =>
+                        {   
+                            lblArquivos.Content = ($"{arquivo}/{openFileDialog.FileNames.Length}");
+                        });
+
+                        var src = filename;
+                        PdfDocument documento = LerPdf(src);
+
+
+                        //Para cada página do arquivo que está sendo processado!
+                        for (int paginaAtual = 1; paginaAtual <= documento.GetNumberOfPages(); paginaAtual++)
                         {
-                            //Adiciona a página processada na lista de páginas!
-                            listaPaginas.Add(EstruturarPaginaPdf_TitulosDeInteresse(linhasPagina));
-                        }
-                        else
-                        {
-                            listaPaginas.Add(EstruturarPaginaPdf_Todos(linhasPagina));
-                        }
-                    }
-                }
-                //Exibindo a lista de páginas processadas!
-                if (chkIncidencia.IsChecked == true)
-                {
-                    txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTradeIncidencia(listaPaginas)),
-                            new JsonSerializerOptions
+                            this.Dispatcher.Invoke(() =>
                             {
-                                WriteIndented = true
+                                lblPaginas.Content = ($"{paginaAtual}/{ documento.GetNumberOfPages()}");
                             });
-                }
-                else if (chkValorNegociado.IsChecked == true)
-                {
-                    txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTrade(listaPaginas)),
-                        new JsonSerializerOptions
+
+                            string pagina = lerPaginaPdf(documento, paginaAtual);
+                            string[] linhasPagina = pagina.Split("\n");
+
+                            this.Dispatcher.Invoke(() =>
+                            {
+                                if ((chkIncidencia.IsChecked == true) || (chkValorNegociado.IsChecked == true))
+                                {
+                                    //Adiciona a página processada na lista de páginas!
+                                    listaPaginas.Add(EstruturarPaginaPdf_TitulosDeInteresse(linhasPagina));
+                                }
+                                else
+                                {
+                                    listaPaginas.Add(EstruturarPaginaPdf_Todos(linhasPagina));
+                                }
+                            });
+
+                        }
+                        arquivo++;
+                    }
+                    this.Dispatcher.Invoke(() =>
+                    {
+                        //Exibindo a lista de páginas processadas!
+                        if (chkIncidencia.IsChecked == true)
                         {
-                            WriteIndented = true
-                        });
-                }
-                else if (chkDetalhes.IsChecked == true)
-                {
-                    txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosDetalhesNota(listaPaginas),
-                        new JsonSerializerOptions
+                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTradeIncidencia(listaPaginas)),
+                                     new JsonSerializerOptions
+                                     {
+                                         WriteIndented = true
+                                     });
+                        }
+                        else if (chkValorNegociado.IsChecked == true)
                         {
-                            WriteIndented = true
-                        });
-                }
+                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTrade(listaPaginas)),
+                                 new JsonSerializerOptions
+                                 {
+                                     WriteIndented = true
+                                 });
+                        }
+                        else if (chkDetalhes.IsChecked == true)
+                        {
+                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosDetalhesNota(listaPaginas),
+                                 new JsonSerializerOptions
+                                 {
+                                     WriteIndented = true
+                                 });
+                        }
+                    });
+                });
+                lblStatus.Content = (Tarefa)t.Status;
+                tasks.Add(t);
+                lblStatus.Content = (Tarefa)t.Status;
+                t.Start();                
+                await Task.WhenAll(tasks.ToArray());
+                lblStatus.Content = (Tarefa)t.Status;
             }
+        }
+        public enum Tarefa
+        {
+            //
+            // Summary:
+            //     The task has been initialized but has not yet been scheduled.
+            Criada,
+            //
+            // Summary:
+            //     The task is waiting to be activated and scheduled internally by the .NET infrastructure.
+            Agendada,
+            //
+            // Summary:
+            //     The task has been scheduled for execution but has not yet begun executing.
+            Aguardando,
+            //
+            // Summary:
+            //     The task is running but has not yet completed.
+            Processando,
+            //
+            // Summary:
+            //     The task has finished executing and is implicitly waiting for attached child
+            //     tasks to complete.
+            Procedendo,
+            //
+            // Summary:
+            //     The task completed execution successfully.
+            Completa,
+            //
+            // Summary:
+            //     The task acknowledged cancellation by throwing an OperationCanceledException
+            //     with its own CancellationToken while the token was in signaled state, or the
+            //     task's CancellationToken was already signaled before the task started executing.
+            //     For more information, see Task Cancellation.
+            Cancelada,
+            //
+            // Summary:
+            //     The task completed due to an unhandled exception.
+            Falhou
         }
         private TituloValor EstruturarPaginaPdf_TitulosDeInteresse(string[] textos)
         {
@@ -208,7 +285,7 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             {
                 //Não é inicio de leitura ainda!
                 if (!inicioLeitura)
-                {                    
+                {
                     //Pode ser o ano do calendario da nota!
                     try
                     {
@@ -268,7 +345,7 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                         isEnd = false;
                     }
                 }
-                if(isEnd)
+                if (isEnd)
                 {
                     break;
                 }

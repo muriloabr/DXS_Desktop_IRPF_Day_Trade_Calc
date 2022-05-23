@@ -9,7 +9,18 @@
     <DockPanel Margin="10">
         <WrapPanel HorizontalAlignment="Center" DockPanel.Dock="Top" Margin="0,0,0,10">
             <Button Name="btnLimpar" Click="btnLimpar_Click"  Height="50" Width="150" Margin="0,0,20,0">Limpar os resultados</Button>
-            <Button Name="btnOpenFile" Click="btnOpenFile_Click"  Height="50" Width="100">Abrir Notas</Button>            
+            <Button Name="btnOpenFile" Click="btnOpenFile_Click"  Height="50" Width="100">Abrir Notas</Button>
+            <WrapPanel HorizontalAlignment="Stretch" DockPanel.Dock="Top" Height="auto" Width="250" Margin="20,0,0,0" Orientation="Horizontal" VerticalAlignment="Stretch">
+                <Label Height="auto" Width="auto" Content="Documentos:" HorizontalAlignment="Center"/>
+                <Label x:Name="lblArquivos" Height="auto" Width="auto" Content="0/0" Margin="77,0,0,0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                <Label Height="auto" Width="auto" Content="Páginas em processamento:"  VerticalAlignment="Stretch" HorizontalAlignment="Right"/>
+                <Label x:Name="lblPaginas" Height="auto" Width="auto" Content="0/0"  VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+            </WrapPanel>
+            <WrapPanel HorizontalAlignment="Stretch" DockPanel.Dock="Top" Height="auto" Width="auto" Margin="0,0,0,0" Orientation="Horizontal" VerticalAlignment="Stretch">
+                <Label Height="auto" Width="auto" Content="Status da Tarefa:" HorizontalAlignment="Center" />
+                <Label x:Name="lblStatus" Height="auto" Width="auto" Content="Ociosa" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+            </WrapPanel>
         </WrapPanel>
         <WrapPanel HorizontalAlignment="Center" DockPanel.Dock="Top" Margin="0,0,0,10">
             <RadioButton Content="Notas Sintetizadas por Valor Negociado" Name="chkValorNegociado" Width="230" Height="15" Margin="20,0,0,0" IsChecked="True"/>
