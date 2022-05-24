@@ -74,11 +74,11 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                                 if ((chkIncidencia.IsChecked == true) || (chkValorNegociado.IsChecked == true))
                                 {
                                     //Adiciona a página processada na lista de páginas!
-                                    listaPaginas.Add(EstruturarPaginaPdf_TitulosDeInteresse(linhasPagina));
+                                    listaPaginas.Add(EstruturarPaginaPdf_Trades(linhasPagina));
                                 }
                                 else
                                 {
-                                    listaPaginas.Add(EstruturarPaginaPdf_Todos(linhasPagina));
+                                    listaPaginas.Add(EstruturarPaginaPdf_DetalhesNota(linhasPagina));
                                 }
                             });
 
@@ -87,26 +87,35 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     }
                     this.Dispatcher.Invoke(() =>
                     {
-                        //Exibindo a lista de páginas processadas!
-                        if (chkIncidencia.IsChecked == true)
+                        //Por incidencia de trade
+                        if (chkIncidencia.IsChecked ?? false)
                         {
-                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTradeIncidencia(listaPaginas)),
+                            txtEditor.Text += codificarString(JsonSerializer.Serialize(
+                                SintetizarPaginasPorDiaSomandoPorTipoTrade(
+                                    ComputarDayTradeIncidencia(listaPaginas)),
                                      new JsonSerializerOptions
                                      {
+                                         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
                                          WriteIndented = true
-                                     });
+                                     }));
                         }
-                        else if (chkValorNegociado.IsChecked == true)
+                        //Por tipo de trade
+                        else if (chkValorNegociado.IsChecked ?? false)
                         {
-                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosNegociacoes(ComputarDayTrade(listaPaginas)),
+                            txtEditor.Text += codificarString(JsonSerializer.Serialize(
+                                SintetizarPaginasPorDiaSomandoPorTipoTrade(
+                                    ComputarDayTrade(listaPaginas)),
                                  new JsonSerializerOptions
                                  {
+                                     Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
                                      WriteIndented = true
-                                 });
+                                 }));
                         }
-                        else if (chkDetalhes.IsChecked == true)
+                        //Por detalhes da nota
+                        else if (chkDetalhes.IsChecked ?? false)
                         {
-                            txtEditor.Text += codificarString(JsonSerializer.Serialize(SintetizarPaginasPorCalendariosDetalhesNota(listaPaginas),
+                            txtEditor.Text += codificarString(JsonSerializer.Serialize(
+                                SintetizarPaginasPorDiaDetalhesNota(listaPaginas),
                                   new JsonSerializerOptions
                                   {
                                       Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
@@ -123,51 +132,14 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                 lblStatus.Content = (Tarefa)t.Status;
             }
         }
-        public enum Tarefa
-        {
-            //
-            // Summary:
-            //     The task has been initialized but has not yet been scheduled.
-            Criada,
-            //
-            // Summary:
-            //     The task is waiting to be activated and scheduled internally by the .NET infrastructure.
-            Agendada,
-            //
-            // Summary:
-            //     The task has been scheduled for execution but has not yet begun executing.
-            Aguardando,
-            //
-            // Summary:
-            //     The task is running but has not yet completed.
-            Processando,
-            //
-            // Summary:
-            //     The task has finished executing and is implicitly waiting for attached child
-            //     tasks to complete.
-            Procedendo,
-            //
-            // Summary:
-            //     The task completed execution successfully.
-            Completa,
-            //
-            // Summary:
-            //     The task acknowledged cancellation by throwing an OperationCanceledException
-            //     with its own CancellationToken while the token was in signaled state, or the
-            //     task's CancellationToken was already signaled before the task started executing.
-            //     For more information, see Task Cancellation.
-            Cancelada,
-            //
-            // Summary:
-            //     The task completed due to an unhandled exception.
-            Falhou
-        }
-        private TituloValor EstruturarPaginaPdf_TitulosDeInteresse(string[] textos)
+
+        #region Modos de captura de dados do PDF
+        private TituloValor EstruturarPaginaPdf_Trades(string[] textos)
         {
             //Configuração padrão
             TituloValor itemNovo = new TituloValor();
             bool inicioLeitura = false;
-            bool isTitulo = true;
+            bool isTitulo = false;
             bool isPrimeiroEspaco = true;
 
             //Configuração restrita ao PDF!
@@ -183,94 +155,72 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                 //Não é inicio de leitura ainda!
                 if (!inicioLeitura)
                 {
-                    //Comparo este texto com algum titulo de interesse!
-                    foreach (string titulo in titulosDeInteresse)
+                    //Não tem titulo capturado ainda!
+                    if (!isTitulo)
                     {
-                        //É um titulo de interesse!
-                        if (codificarString(titulo).Equals(codificarString(texto)))
+                        //Pode ser o ano do calendario da nota!
+                        try
                         {
-                            if (isTitulo)
+                            int ano, mes, dia;
+                            string[] possivelData = texto.TrimEnd().TrimStart().Split(" ");
+                            string[] data;
+                            foreach (string item in possivelData)
                             {
-                                itemNovo.Titulo = codificarString(tituloDeLeitura.TrimEnd().TrimStart());
-                                isTitulo = false;
-                            }
-                            //Aviso que comecamos a leitura de interesse e vamos para o próximo texto!
-                            inicioLeitura = true;
-                            break;
-                        }
-                        //Não é um titulo de intersse!
-                        else
-                        {
-                            //Pode ser o ano do calendario da nota!
-                            try
-                            {
-                                int ano, mes, dia;
-                                string[] possivelData = texto.TrimEnd().TrimStart().Split(" ");
-                                string[] data;
-                                foreach (string item in possivelData)
+                                if (item.Contains('/'))
                                 {
-                                    if (item.Contains('/'))
-                                    {
-                                        data = item.TrimEnd().TrimStart().Split('/');
-                                        int.TryParse(data[0], out dia);
-                                        int.TryParse(data[1], out mes);
-                                        int.TryParse(data[2], out ano);
-                                        DateTime calendario = new DateTime(ano, mes, dia);
-                                        itemNovo.Titulo = codificarString(calendario.Day + "/" + calendario.Month + "/" + calendario.Year);
-                                        isTitulo = false;
-                                        break;
-                                    }
+                                    data = item.TrimEnd().TrimStart().Split('/');
+                                    int.TryParse(data[0], out dia);
+                                    int.TryParse(data[1], out mes);
+                                    int.TryParse(data[2], out ano);
+                                    DateTime calendario = new DateTime(ano, mes, dia);
+                                    itemNovo.Titulo = codificarString(calendario.Day + "/" + calendario.Month + "/" + calendario.Year);
+                                    //Aviso que capturou o titulo!
+                                    isTitulo = true;
+                                    break;
                                 }
                             }
-                            catch (Exception ex)
-                            {
-                                //Não faz nada
-                            }
+                        }
+                        catch
+                        {
+                            //Não faz nada, pois não é o título certo!
                         }
                     }
-                    //vamos para o próximo sem encontrar o título de interesse!
-                    continue;
+                    else
+                    {                        
+                        if (Array.IndexOf(titulosDeInteresse, codificarString(texto.TrimEnd().TrimStart())) > -1)
+                        {
+                            inicioLeitura = true;
+                        }
+                    }
                 }
-
-                //É inicio de leitura!
-
-                //É a vez de montar um título!
-                if (isTitulo)
-                {
-                    //Registro o titulo de leitura no objeto da lista!
-                    itemNovo.Titulo = codificarString(tituloDeLeitura.TrimEnd().TrimStart());
-                    //Aviso que já temos um título!
-                    isTitulo = false;
-                }
-                //É a vez de montar o valor!
+                //Começou a Leitura!
                 else
                 {
-                    //Tem título + primeiro espaçamento depois do título e não tem valor
-                    if ((!string.IsNullOrEmpty(itemNovo.Titulo.Trim()))
-                        && (string.IsNullOrEmpty(texto.Trim())) && (isPrimeiroEspaco))
+                    if (isPrimeiroEspaco)
                     {
-                        //Aviso que o primeiro espaço já passou e vamos para o próximo texto!
                         isPrimeiroEspaco = false;
+                        //Pulo este registro!
                         continue;
                     }
                     else
                     {
-                        //Texto é vazio!
-                        if (string.IsNullOrEmpty(texto.Trim()))
+                        if (string.IsNullOrEmpty(codificarString(texto.Trim())))
                         {
-                            return itemNovo;
+                            //Encerramos as atividades!
+                            break;
                         }
                         else
                         {
                             //Adicionar valor à lista!
-                            itemNovo.Valor.Add(separarElementosEspacados(codificarString(texto)));
+                            itemNovo.Valor.Add(separarElementosEspacados(codificarString(texto.TrimEnd().TrimStart())));
                         }
                     }
                 }
             }
+
             return itemNovo;
         }
-        private TituloValor EstruturarPaginaPdf_Todos(string[] textos)
+        private TituloValor EstruturarPaginaPdf_DetalhesNota(string[] textos)
         {
             //Configuração padrão
             TituloValor itemNovo = new TituloValor();
@@ -284,7 +234,6 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             titulosDeInteresse.Add(new TituloEncontrado("IRRF Day Trade(Projeção)", false));
             titulosDeInteresse.Add(new TituloEncontrado("ISS", false));
             string tituloDoValor = "";
-
 
             foreach (var texto in textos)
             {
@@ -323,7 +272,7 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     {
                         List<string> listaRapida = new List<string>();
                         string[] valoresSeparados = (codificarString(texto)).Split("|");
-                       
+
                         //Se tiver 2 ou mais valores
                         if (valoresSeparados.Length > 1)
                         {
@@ -385,26 +334,9 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             }
             return itemNovo;
         }
-        private PdfDocument LerPdf(string path)
-        {
-            PdfReader pdfLeitor = new PdfReader(path);
-            PdfDocument pdfDoc = new PdfDocument(pdfLeitor);
-            return pdfDoc;
-        }
-        private string lerPaginaPdf(PdfDocument pdfDoc, int pagina)
-        {
-            ITextExtractionStrategy stry = new SimpleTextExtractionStrategy();
-            return PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(pagina), stry);
-        }
-        private List<string> separarElementosEspacados(string elementos)
-        {
-            return new List<string>(elementos.Split(" "));
-        }
-        private string codificarString(string texto)
-        {
-            byte[] bytes = Encoding.Unicode.GetBytes(texto);
-            return Encoding.Unicode.GetString(bytes);
-        }
+        #endregion
+
+        #region Classes basicas
         private class TituloValor
         {
             private string titulo;
@@ -445,6 +377,53 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             }
 
         }
+        public enum Tarefa
+        {
+            //
+            // Summary:
+            //     The task has been initialized but has not yet been scheduled.
+            Criada,
+            //
+            // Summary:
+            //     The task is waiting to be activated and scheduled internally by the .NET infrastructure.
+            Agendada,
+            //
+            // Summary:
+            //     The task has been scheduled for execution but has not yet begun executing.
+            Aguardando,
+            //
+            // Summary:
+            //     The task is running but has not yet completed.
+            Processando,
+            //
+            // Summary:
+            //     The task has finished executing and is implicitly waiting for attached child
+            //     tasks to complete.
+            Procedendo,
+            //
+            // Summary:
+            //     The task completed execution successfully.
+            Completa,
+            //
+            // Summary:
+            //     The task acknowledged cancellation by throwing an OperationCanceledException
+            //     with its own CancellationToken while the token was in signaled state, or the
+            //     task's CancellationToken was already signaled before the task started executing.
+            //     For more information, see Task Cancellation.
+            Cancelada,
+            //
+            // Summary:
+            //     The task completed due to an unhandled exception.
+            Falhou
+        }
+        #endregion
+
+        #region Auxiliares
+        private string codificarString(string texto)
+        {
+            byte[] bytes = Encoding.Unicode.GetBytes(texto);
+            return Encoding.Unicode.GetString(bytes);
+        }
         private string QualPolarizacao(Dictionary<string, string> dado, string tipo)
         {
             string valorAnteriorPuro = "";
@@ -474,7 +453,55 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     throw new Exception("Polarização de valor deu errado!");
             }
         }
-        private List<Dictionary<string, string>> SintetizarPaginasPorCalendariosNegociacoes(List<Dictionary<string, string>> listaComputada)
+        private bool SomarValorDoPDfAoDado(ref Dictionary<string, string> dado, List<string> valoresNovos, string tipo)
+        {
+            if (dado.ContainsKey(tipo))
+            {
+                //Pega o valor que estava e soma com o novo;
+                string valorAnteriorPuro = "";
+                double valorAnterior = double.MinValue;
+                dado.TryGetValue(tipo, out valorAnteriorPuro);
+                double.TryParse(valorAnteriorPuro, NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out valorAnterior);
+
+                if (valorAnterior != double.MinValue)
+                {
+                    double valor = double.MinValue;
+
+                    if (valoresNovos.Count < 9)
+                        return false;
+
+                    double.TryParse(valoresNovos[8], NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out valor);
+                    valorAnterior = Math.Round(valorAnterior, 2);
+                    valor = (valor != double.MinValue) ? valorAnterior + PolarizarValor(valor, valoresNovos[9]) : throw new Exception("Falha ao acessar valor 3!");
+                    valor = Math.Round(valor, 2);
+                    dado[tipo] = valor.ToString();
+                }
+                else
+                {
+                    throw new Exception("Falha ao acessar valor ao calcular!");
+                }
+            }
+            return true;
+        }
+        private PdfDocument LerPdf(string path)
+        {
+            PdfReader pdfLeitor = new PdfReader(path);
+            PdfDocument pdfDoc = new PdfDocument(pdfLeitor);
+            return pdfDoc;
+        }
+        private string lerPaginaPdf(PdfDocument pdfDoc, int pagina)
+        {
+            ITextExtractionStrategy stry = new SimpleTextExtractionStrategy();
+            return PdfTextExtractor.GetTextFromPage(pdfDoc.GetPage(pagina), stry);
+        }
+        private List<string> separarElementosEspacados(string elementos)
+        {
+            return new List<string>(elementos.Split(" "));
+        }
+        #endregion
+
+        #region Sintetizadores
+        private List<Dictionary<string, string>> SintetizarPaginasPorDiaSomandoPorTipoTrade(List<Dictionary<string, string>> listaComputada)
         {
             List<Dictionary<string, string>> listaSintetizada = new List<Dictionary<string, string>>();
             string calendario = "";
@@ -519,6 +546,12 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     {
                         valoreComoNoPdf[8] = calculo["WIN"];
                         valoreComoNoPdf[9] = QualPolarizacao(calculo, "WIN");
+                        //calculoSintetizado Não possui o WIN ainda
+                        if (!calculoSintetizado.ContainsKey("WIN"))
+                        {
+                            calculoSintetizado["WIN"] = "0";
+                        }
+                        //Somo no campo "WIN"
                         SomarValorDoPDfAoDado(ref calculoSintetizado, valoreComoNoPdf, "WIN");
                     }
 
@@ -526,6 +559,12 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     {
                         valoreComoNoPdf[8] = calculo["WDO"];
                         valoreComoNoPdf[9] = QualPolarizacao(calculo, "WDO");
+                        //calculoSintetizado Não possui o WDO ainda
+                        if (!calculoSintetizado.ContainsKey("WDO"))
+                        {
+                            calculoSintetizado["WDO"] = "0";
+                        }
+                        //Somo no campo "WIN"
                         SomarValorDoPDfAoDado(ref calculoSintetizado, valoreComoNoPdf, "WDO");
                     }
 
@@ -539,7 +578,7 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             }
             return listaSintetizada;
         }
-        private List<Dictionary<string, string>> SintetizarPaginasPorCalendariosDetalhesNota(List<TituloValor> lista)
+        private List<Dictionary<string, string>> SintetizarPaginasPorDiaDetalhesNota(List<TituloValor> lista)
         {
             List<Dictionary<string, string>> listaSintetizada = new List<Dictionary<string, string>>();
             string calendario = "";
@@ -583,36 +622,9 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             }
             return listaSintetizada;
         }
-        private bool SomarValorDoPDfAoDado(ref Dictionary<string, string> dado, List<string> valoresNovos, string tipo)
-        {
-            if (dado.ContainsKey(tipo))
-            {
-                //Pega o valor que estava e soma com o novo;
-                string valorAnteriorPuro = "";
-                double valorAnterior = double.MinValue;
-                dado.TryGetValue(tipo, out valorAnteriorPuro);
-                double.TryParse(valorAnteriorPuro, NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out valorAnterior);
+        #endregion
 
-                if (valorAnterior != double.MinValue)
-                {
-                    double valor = double.MinValue;
-
-                    if (valoresNovos.Count < 9)
-                        return false;
-
-                    double.TryParse(valoresNovos[8], NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out valor);
-                    valorAnterior = Math.Round(valorAnterior, 2);
-                    valor = (valor != double.MinValue) ? valorAnterior + PolarizarValor(valor, valoresNovos[9]) : throw new Exception("Falha ao acessar valor 3!");
-                    valor = Math.Round(valor, 2);
-                    dado[tipo] = valor.ToString();
-                }
-                else
-                {
-                    throw new Exception("Falha ao acessar valor ao calcular!");
-                }
-            }
-            return true;
-        }
+        #region Agrupando Valores Por Página
         private List<Dictionary<string, string>> ComputarDayTrade(List<TituloValor> listaPaginas)
         {
             //Configuracao do PDF
@@ -729,5 +741,6 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             }
             return listaComputada;
         }
+        #endregion
     }
 }
