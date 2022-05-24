@@ -27,6 +27,6 @@
             <RadioButton Content="Somente  detalhes das Notas" Name="chkDetalhes" Width="180" Height="15" Margin="20,0,0,0"/>
             <RadioButton Content="Notas Sintetizadas por Incidência" Name="chkIncidencia" Width="200" Height="15" Margin="20,0,0,0"/>
         </WrapPanel>
-        <TextBox Name="txtEditor" />
+        <TextBox Name="txtEditor" FontFamily="Arial" />
     </DockPanel>
 </Window>

@@ -8,7 +8,9 @@ using System.Text;
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Unicode;
 using System.Threading.Tasks;
 
 namespace DXS_Desktop_IRPF_Day_Trade_Calc
@@ -48,7 +50,7 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                     foreach (string filename in openFileDialog.FileNames)
                     {
                         this.Dispatcher.Invoke(() =>
-                        {   
+                        {
                             lblArquivos.Content = ($"{arquivo}/{openFileDialog.FileNames.Length}");
                         });
 
@@ -104,18 +106,19 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                         }
                         else if (chkDetalhes.IsChecked == true)
                         {
-                            txtEditor.Text += JsonSerializer.Serialize(SintetizarPaginasPorCalendariosDetalhesNota(listaPaginas),
-                                 new JsonSerializerOptions
-                                 {
-                                     WriteIndented = true
-                                 });
+                            txtEditor.Text += codificarString(JsonSerializer.Serialize(SintetizarPaginasPorCalendariosDetalhesNota(listaPaginas),
+                                  new JsonSerializerOptions
+                                  {
+                                      Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
+                                      WriteIndented = true
+                                  }));
                         }
                     });
                 });
                 lblStatus.Content = (Tarefa)t.Status;
                 tasks.Add(t);
                 lblStatus.Content = (Tarefa)t.Status;
-                t.Start();                
+                t.Start();
                 await Task.WhenAll(tasks.ToArray());
                 lblStatus.Content = (Tarefa)t.Status;
             }
@@ -277,7 +280,9 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
             //Configuração restrita ao PDF!
             List<TituloEncontrado> titulosDeInteresse = new List<TituloEncontrado>();
             titulosDeInteresse.Add(new TituloEncontrado("Total das despesas", false));
-            titulosDeInteresse.Add(new TituloEncontrado("Total líquido da nota", false));
+            titulosDeInteresse.Add(new TituloEncontrado("Total líquido da nota", false));
+            titulosDeInteresse.Add(new TituloEncontrado("IRRF Day Trade(Projeção)", false));
+            titulosDeInteresse.Add(new TituloEncontrado("ISS", false));
             string tituloDoValor = "";
 
 
@@ -316,38 +321,66 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
                 {
                     if (isValorEncontrado)
                     {
-                        List<string> listaRapida = new List<string>() {
-                                tituloDoValor, (codificarString(texto)).Split("|")[0].Trim()
+                        List<string> listaRapida = new List<string>();
+                        string[] valoresSeparados = (codificarString(texto)).Split("|");
+                       
+                        //Se tiver 2 ou mais valores
+                        if (valoresSeparados.Length > 1)
+                        {
+                            double valorAtual = 0.0;
+                            double.TryParse(valoresSeparados[0], out valorAtual);
+
+                            listaRapida = new List<string>() {
+                                tituloDoValor, PolarizarValor(valorAtual,
+                                valoresSeparados[1].Trim())
+                                .ToString()
                             };
+
+                        }
+                        //Se tiver só um valor
+                        else
+                        {
+                            listaRapida = new List<string>() {
+                                tituloDoValor,  valoresSeparados[0].Trim()
+                                .ToString()
+                            };
+                        }
 
                         itemNovo.Valor.Add(listaRapida);
                         tituloDoValor = "";
                         isValorEncontrado = false;
+
+                        //Se encontrou todos titulos ele sai!
+                        bool isEnd = true;
+                        foreach (TituloEncontrado titulo in titulosDeInteresse)
+                        {
+                            if (!titulo.Encontrado)
+                            {
+                                isEnd = false;
+                            }
+                        }
+                        if (isEnd)
+                        {
+                            break;
+                        }
                     }
                     else
                     {
                         foreach (TituloEncontrado titulo in titulosDeInteresse)
                         {
-                            if (codificarString(titulo.Titulo).Equals(codificarString(texto)))
+                            if (titulo.Encontrado)
                             {
-                                tituloDoValor = codificarString(texto);
+                                continue;
+                            }
+
+                            if ((codificarString(titulo.Titulo).Equals(codificarString(texto.TrimEnd().TrimStart()))) && (!titulo.Encontrado))
+                            {
+                                tituloDoValor = codificarString(texto.TrimEnd().TrimStart());
                                 isValorEncontrado = true;
                                 titulo.Encontrado = true;
                             }
                         }
                     }
-                }
-                bool isEnd = true;
-                foreach (TituloEncontrado titulo in titulosDeInteresse)
-                {
-                    if (!titulo.Encontrado)
-                    {
-                        isEnd = false;
-                    }
-                }
-                if (isEnd)
-                {
-                    break;
                 }
             }
             return itemNovo;
@@ -369,8 +402,8 @@ namespace DXS_Desktop_IRPF_Day_Trade_Calc
         }
         private string codificarString(string texto)
         {
-            byte[] bytes = Encoding.Latin1.GetBytes(texto);
-            return Encoding.Latin1.GetString(bytes);
+            byte[] bytes = Encoding.Unicode.GetBytes(texto);
+            return Encoding.Unicode.GetString(bytes);
         }
         private class TituloValor
         {
